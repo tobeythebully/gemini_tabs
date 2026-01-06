@@ -426,6 +426,7 @@ class TabManager {
         // Poll for title and handle Tab key for prompt insertion
         let titlePollInterval;
         webview.addEventListener('dom-ready', () => {
+            console.log('[App] dom-ready fired for webview');
             if (titlePollInterval) clearInterval(titlePollInterval);
 
             titlePollInterval = setInterval(() => {
@@ -448,73 +449,128 @@ class TabManager {
                 updateBookmarkState();
             }, 2000);
 
-            // Inject Tab key handler for prompt commands with prompts data
+            // Inject Tab key handler for prompt commands (supports inline commands)
             const promptsData = JSON.stringify(window.promptManager.prompts);
             webview.executeJavaScript(`
-                // Only add handler if not already added
                 if (!window.__promptHandlerAdded) {
                     window.__promptHandlerAdded = true;
                     window.__promptProcessing = false;
                     window.__prompts = ${promptsData};
                     
-                    document.addEventListener('keydown', (e) => {
+                    // Find command at cursor position
+                    function getCommandAtCursor() {
+                        var sel = window.getSelection();
+                        if (!sel.rangeCount) return null;
+                        
+                        var range = sel.getRangeAt(0);
+                        var node = range.startContainer;
+                        
+                        // Handle case where cursor is in element node
+                        if (node.nodeType !== Node.TEXT_NODE) {
+                            // Try to find text node child
+                            if (node.childNodes.length > 0 && range.startOffset > 0) {
+                                node = node.childNodes[range.startOffset - 1];
+                                if (node.nodeType === Node.TEXT_NODE) {
+                                    // Cursor is at end of this text node
+                                    var text = node.textContent;
+                                    var cursorPos = text.length;
+                                    return findCommandInText(text, cursorPos, node);
+                                }
+                            }
+                            return null;
+                        }
+                        
+                        var text = node.textContent;
+                        var cursorPos = range.startOffset;
+                        return findCommandInText(text, cursorPos, node);
+                    }
+                    
+                    function findCommandInText(text, cursorPos, node) {
+                        // Search backwards from cursor to find /
+                        var start = cursorPos - 1;
+                        while (start >= 0) {
+                            var char = text[start];
+                            if (char === '/') break;
+                            if (char === ' ' || char === '\\n') return null; // Space breaks command
+                            start--;
+                        }
+                        
+                        if (start < 0 || text[start] !== '/') return null;
+                        
+                        var command = text.substring(start, cursorPos);
+                        if (command.length < 2) return null; // At least /x
+                        
+                        return {
+                            command: command,
+                            start: start,
+                            end: cursorPos,
+                            node: node
+                        };
+                    }
+                    
+                    document.addEventListener('keydown', function(e) {
                         if (e.key === 'Tab') {
-                            // Prevent duplicate processing
                             if (window.__promptProcessing) return;
                             
-                            const editor = document.querySelector('.ql-editor');
+                            var editor = document.querySelector('.ql-editor');
                             if (!editor) return;
                             
-                            // Get text content reliably
-                            const text = editor.innerText.trim();
+                            var cmdInfo = getCommandAtCursor();
+                            if (!cmdInfo) return;
                             
-                            // Check if text starts with / and has no spaces (is a command)
-                            if (text.startsWith('/') && !text.includes(' ')) {
-                                const promptItem = window.__prompts.find(p => p.command === text);
-                                if (promptItem) {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    e.stopImmediatePropagation();
-                                    
-                                    // Set processing flag
-                                    window.__promptProcessing = true;
-                                    
-                                    // Focus and wait for next event loop tick
-                                    editor.focus();
-                                    
-                                    setTimeout(() => {
-                                        // Select all content using Range API
-                                        const range = document.createRange();
-                                        range.selectNodeContents(editor);
-                                        const selection = window.getSelection();
-                                        selection.removeAllRanges();
-                                        selection.addRange(range);
-                                        
-                                        // Delete and insert in next tick
-                                        setTimeout(() => {
-                                            document.execCommand('delete', false, null);
-                                            document.execCommand('insertText', false, promptItem.prompt);
-                                            
-                                            // Reset processing flag after a short delay
-                                            setTimeout(() => {
-                                                window.__promptProcessing = false;
-                                            }, 100);
-                                        }, 0);
-                                    }, 0);
+                            // Find matching prompt
+                            var promptItem = null;
+                            for (var i = 0; i < window.__prompts.length; i++) {
+                                if (window.__prompts[i].command === cmdInfo.command) {
+                                    promptItem = window.__prompts[i];
+                                    break;
                                 }
+                            }
+                            
+                            if (promptItem) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                e.stopImmediatePropagation();
+                                
+                                window.__promptProcessing = true;
+                                
+                                // Save command for replacement
+                                var savedCommand = cmdInfo.command;
+                                var savedPrompt = promptItem.prompt;
+                                var editor = document.querySelector('.ql-editor');
+                                
+                                // Use text replacement approach instead of Range API
+                                // This works better with Korean IME composition
+                                setTimeout(function() {
+                                    var fullText = editor.innerText || '';
+                                    var newText = fullText.replace(savedCommand, savedPrompt);
+                                    
+                                    // Select all and replace
+                                    var range = document.createRange();
+                                    range.selectNodeContents(editor);
+                                    var sel = window.getSelection();
+                                    sel.removeAllRanges();
+                                    sel.addRange(range);
+                                    
+                                    document.execCommand('delete', false, null);
+                                    document.execCommand('insertText', false, newText.trim());
+                                    
+                                    setTimeout(function() {
+                                        window.__promptProcessing = false;
+                                    }, 100);
+                                }, 50);
                             }
                         }
                     }, true);
                 } else {
-                    // Update prompts data only
                     window.__prompts = ${promptsData};
                 }
-            `).catch(() => { });
+            `).catch(function () { });
         });
 
-        // Listen for prompt command messages
+        // Listen for console messages from webview for debugging
         webview.addEventListener('console-message', (e) => {
-            // Handle prompt replacement via IPC if needed
+            console.log('[Webview]', e.message);
         });
 
         webview.addEventListener('ipc-message', (e) => {
@@ -638,6 +694,12 @@ class TabManager {
 // ============================================
 // INITIALIZE
 // ============================================
+// Detect platform and add class to body for CSS
+if (window.electronAPI && window.electronAPI.platform) {
+    const platform = window.electronAPI.platform === 'darwin' ? 'mac' : 'win';
+    document.body.classList.add(`platform-${platform}`);
+}
+
 window.bookmarkManager = new BookmarkManager();
 window.promptManager = new PromptManager();
 window.settingsModal = new SettingsModal();

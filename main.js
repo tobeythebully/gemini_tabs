@@ -4,20 +4,31 @@ const path = require('path');
 let mainWindow;
 
 function createWindow() {
-  mainWindow = new BrowserWindow({
+  const isMac = process.platform === 'darwin';
+
+  const windowOptions = {
     width: 1400,
     height: 900,
     minWidth: 800,
     minHeight: 600,
-    titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 15, y: 15 },
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       webviewTag: true,
       preload: path.join(__dirname, 'preload.js')
     }
-  });
+  };
+
+  // macOS 전용 설정
+  if (isMac) {
+    windowOptions.titleBarStyle = 'hiddenInset';
+    windowOptions.trafficLightPosition = { x: 15, y: 15 };
+  } else {
+    // Windows: 기본 프레임 사용, 메뉴바 숨김
+    windowOptions.autoHideMenuBar = true;
+  }
+
+  mainWindow = new BrowserWindow(windowOptions);
 
   mainWindow.loadFile('index.html');
 

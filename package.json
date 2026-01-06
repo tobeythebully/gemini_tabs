@@ -6,7 +6,9 @@
     "scripts": {
         "start": "electron .",
         "build": "electron-builder --mac",
-        "build:dir": "electron-builder --mac --dir"
+        "build:dir": "electron-builder --mac --dir",
+        "build:win": "electron-builder --win",
+        "build:all": "electron-builder --mac --win"
     },
     "build": {
         "appId": "com.gemini.tabs",
@@ -18,6 +20,19 @@
                 "zip"
             ],
             "icon": "assets/icon.icns"
+        },
+        "win": {
+            "target": [
+                "nsis",
+                "portable"
+            ],
+            "icon": "assets/icon.png"
+        },
+        "nsis": {
+            "oneClick": false,
+            "allowToChangeInstallationDirectory": true,
+            "createDesktopShortcut": true,
+            "createStartMenuShortcut": true
         },
         "files": [
             "main.js",

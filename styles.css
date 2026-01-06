@@ -42,6 +42,11 @@ body {
   border-bottom: 1px solid #333;
 }
 
+/* Windows: 트래픽 라이트 없으므로 왼쪽 패딩 축소 */
+body.platform-win .tab-bar {
+  padding-left: 16px;
+}
+
 .tab-list {
   display: flex;
   align-items: center;
@@ -232,6 +237,11 @@ webview.active {
   padding: 6px 16px 6px 80px;
   border-bottom: 1px solid #222;
   min-height: 36px;
+}
+
+/* Windows: 트래픽 라이트 없으므로 왼쪽 패딩 축소 */
+body.platform-win .bookmark-bar {
+  padding-left: 16px;
 }
 
 .bookmark-list {
