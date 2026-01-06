@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gemini Tabs</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+  <div class="app-container">
+    <!-- Tab Bar -->
+    <div class="tab-bar">
+      <div class="tab-list" id="tabList">
+        <button class="new-tab-btn" id="newTabBtn" title="새 탭 (⌘T)">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+            <path d="M8 1v14M1 8h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+        </button>
+      </div>
+      <button class="settings-btn" id="settingsBtn" title="설정">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path
+            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+          </path>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Bookmark Bar -->
+    <div class="bookmark-bar" id="bookmarkBar">
+      <div class="bookmark-list" id="bookmarkList"></div>
+    </div>
+
+    <!-- Webview Container -->
+    <div class="webview-container" id="webviewContainer"></div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal-overlay" id="settingsModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>설정</h2>
+        <button class="modal-close" id="closeSettings">✕</button>
+      </div>
+      <div class="modal-tabs">
+        <button class="modal-tab active" data-tab="bookmarks">북마크</button>
+        <button class="modal-tab" data-tab="prompts">프롬프트</button>
+      </div>
+      <div class="modal-content">
+        <!-- Bookmarks Tab -->
+        <div class="tab-content active" id="bookmarksTab">
+          <div class="list-container" id="bookmarksList"></div>
+        </div>
+        <!-- Prompts Tab -->
+        <div class="tab-content" id="promptsTab">
+          <div class="add-prompt-form">
+            <input type="text" id="newCommand" placeholder="/커맨드" maxlength="20">
+            <input type="text" id="newPrompt" placeholder="프롬프트 내용">
+            <button id="addPromptBtn">추가</button>
+          </div>
+          <p class="prompt-hint">💡 Gemini에서 /커맨드 입력 후 Tab 키를 누르면 프롬프트가 삽입됩니다.</p>
+          <div class="list-container" id="promptsList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+
+</html>
