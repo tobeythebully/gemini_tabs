@@ -26,7 +26,7 @@ Google Gemini를 멀티탭으로 사용할 수 있는 macOS 데스크탑 앱입�
 
 ## 📥 설치 방법
 
-1. [Releases](./dist)에서 `Gemini Tabs-1.0.0-arm64.dmg` 다운로드
+1. [Releases](https://github.com/tobeythebully/gemini_tabs/releases)에서 `Gemini Tabs-1.0.0-arm64.dmg` 다운로드
 2. DMG 파일 열기
 3. `Gemini Tabs.app`을 **Applications** 폴더로 드래그
 4. 앱 실행!
