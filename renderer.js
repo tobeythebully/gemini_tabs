@@ -592,6 +592,146 @@ class TabManager {
                     window.__promptHandlerAdded = true;
                     window.__promptProcessing = false;
                     window.__prompts = ${promptsData};
+                    window.__dropdownVisible = false;
+                    window.__selectedIndex = 0;
+                    window.__filteredPrompts = [];
+                    
+                    // Create dropdown element
+                    var dropdown = document.createElement('div');
+                    dropdown.id = '__prompt_dropdown';
+                    dropdown.style.cssText = 'position:absolute;z-index:99999;background:#1a1a1a;border:1px solid #333;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.4);max-height:200px;overflow-y:auto;display:none;min-width:200px;';
+                    document.body.appendChild(dropdown);
+                    
+                    function showDropdown(x, y, filter) {
+                        var filterLower = (filter || '').toLowerCase();
+                        window.__filteredPrompts = window.__prompts.filter(function(p) {
+                            return p.command.toLowerCase().includes(filterLower) || p.prompt.toLowerCase().includes(filterLower);
+                        });
+                        
+                        if (window.__filteredPrompts.length === 0) {
+                            hideDropdown();
+                            return;
+                        }
+                        
+                        window.__selectedIndex = 0;
+                        renderDropdown();
+                        dropdown.style.left = x + 'px';
+                        dropdown.style.top = y + 'px';
+                        dropdown.style.display = 'block';
+                        window.__dropdownVisible = true;
+                    }
+                    
+                    function hideDropdown() {
+                        dropdown.style.display = 'none';
+                        window.__dropdownVisible = false;
+                        window.__filteredPrompts = [];
+                    }
+                    
+                    function renderDropdown() {
+                        // Clear dropdown using DOM manipulation (TrustedHTML compliant)
+                        while (dropdown.firstChild) {
+                            dropdown.removeChild(dropdown.firstChild);
+                        }
+                        
+                        window.__filteredPrompts.forEach(function(p, i) {
+                            var item = document.createElement('div');
+                            item.setAttribute('data-index', i);
+                            item.style.cssText = 'padding:10px 14px;cursor:pointer;border-bottom:1px solid #222;background:' + (i === window.__selectedIndex ? '#333' : 'transparent');
+                            
+                            var cmdDiv = document.createElement('div');
+                            cmdDiv.style.cssText = 'color:#fff;font-weight:500;';
+                            cmdDiv.textContent = p.command;
+                            
+                            var promptDiv = document.createElement('div');
+                            promptDiv.style.cssText = 'color:#888;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:300px;';
+                            promptDiv.textContent = p.prompt.length > 50 ? p.prompt.substring(0, 50) + '...' : p.prompt;
+                            
+                            item.appendChild(cmdDiv);
+                            item.appendChild(promptDiv);
+                            
+                            // Prevent focus loss on mousedown
+                            item.addEventListener('mousedown', function(e) {
+                                e.preventDefault();
+                            });
+                            
+                            item.addEventListener('click', function(e) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                selectPrompt(i);
+                            });
+                            
+                            item.addEventListener('mouseenter', function() {
+                                window.__selectedIndex = i;
+                                // Update visual only without re-rendering to avoid focus issues
+                                dropdown.querySelectorAll('[data-index]').forEach(function(el, idx) {
+                                    el.style.background = idx === i ? '#333' : 'transparent';
+                                });
+                            });
+                            
+                            dropdown.appendChild(item);
+                        });
+                    }
+                    
+                    function selectPrompt(index) {
+                        var promptItem = window.__filteredPrompts[index];
+                        if (!promptItem) return;
+                        
+                        var cmdInfo = getCommandAtCursor();
+                        if (!cmdInfo) {
+                            hideDropdown();
+                            return;
+                        }
+                        
+                        window.__promptProcessing = true;
+                        var savedPrompt = promptItem.prompt;
+                        
+                        // Find editor with multiple selectors
+                        var editor = document.querySelector('.ql-editor') || 
+                                     document.activeElement;
+                        
+                        if (!editor || !editor.isContentEditable) {
+                            console.log('[Dropdown] No editable element found');
+                            window.__promptProcessing = false;
+                            hideDropdown();
+                            return;
+                        }
+                        
+                        setTimeout(function() {
+                            var fullText = editor.innerText || '';
+                            var newText = fullText.replace(cmdInfo.command, savedPrompt);
+                            
+                            var range = document.createRange();
+                            range.selectNodeContents(editor);
+                            var sel = window.getSelection();
+                            sel.removeAllRanges();
+                            sel.addRange(range);
+                            
+                            document.execCommand('delete', false, null);
+                            document.execCommand('insertText', false, newText.trim());
+                            
+                            setTimeout(function() {
+                                window.__promptProcessing = false;
+                            }, 100);
+                        }, 50);
+                        
+                        hideDropdown();
+                    }
+                    
+                    function getCaretCoordinates() {
+                        var sel = window.getSelection();
+                        if (!sel.rangeCount) return null;
+                        var range = sel.getRangeAt(0).cloneRange();
+                        range.collapse(true);
+                        var rect = range.getClientRects()[0];
+                        if (!rect) {
+                            var span = document.createElement('span');
+                            span.textContent = '\\u200b';
+                            range.insertNode(span);
+                            rect = span.getBoundingClientRect();
+                            span.parentNode.removeChild(span);
+                        }
+                        return rect ? { x: rect.left, y: rect.bottom + 5 } : null;
+                    }
                     
                     // Find command at cursor position
                     function getCommandAtCursor() {
@@ -634,7 +774,7 @@ class TabManager {
                         if (start < 0 || text[start] !== '/') return null;
                         
                         var command = text.substring(start, cursorPos);
-                        if (command.length < 2) return null; // At least /x
+                        if (command.length < 1) return null;
                         
                         return {
                             command: command,
@@ -644,7 +784,67 @@ class TabManager {
                         };
                     }
                     
+                    // Input handler to detect / and show dropdown
+                    document.addEventListener('keyup', function(e) {
+                        // Skip modifier keys and navigation keys
+                        if (e.key === 'Shift' || e.key === 'Control' || e.key === 'Alt' || e.key === 'Meta' ||
+                            e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight' ||
+                            e.key === 'Tab' || e.key === 'Enter' || e.key === 'Escape') return;
+                        
+                        // Only process when typing in an editable area
+                        var activeEl = document.activeElement;
+                        if (!activeEl) return;
+                        if (!activeEl.isContentEditable && activeEl.tagName !== 'INPUT' && activeEl.tagName !== 'TEXTAREA') return;
+                        
+                        var cmdInfo = getCommandAtCursor();
+                        if (cmdInfo && cmdInfo.command.startsWith('/')) {
+                            var coords = getCaretCoordinates();
+                            if (coords) {
+                                var filter = cmdInfo.command.substring(1);
+                                showDropdown(coords.x, coords.y, filter);
+                            }
+                        } else {
+                            hideDropdown();
+                        }
+                    }, true);
+                    
                     document.addEventListener('keydown', function(e) {
+                        // Handle dropdown navigation
+                        if (window.__dropdownVisible) {
+                            if (e.key === 'ArrowDown') {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                window.__selectedIndex = Math.min(window.__selectedIndex + 1, window.__filteredPrompts.length - 1);
+                                // Update visual only
+                                dropdown.querySelectorAll('[data-index]').forEach(function(el, idx) {
+                                    el.style.background = idx === window.__selectedIndex ? '#333' : 'transparent';
+                                });
+                                return;
+                            }
+                            if (e.key === 'ArrowUp') {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                window.__selectedIndex = Math.max(window.__selectedIndex - 1, 0);
+                                // Update visual only
+                                dropdown.querySelectorAll('[data-index]').forEach(function(el, idx) {
+                                    el.style.background = idx === window.__selectedIndex ? '#333' : 'transparent';
+                                });
+                                return;
+                            }
+                            if (e.key === 'Tab') {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                e.stopImmediatePropagation();
+                                selectPrompt(window.__selectedIndex);
+                                return;
+                            }
+                            if (e.key === 'Escape') {
+                                e.preventDefault();
+                                hideDropdown();
+                                return;
+                            }
+                        }
+                        
                         if (e.key === 'Tab') {
                             if (window.__promptProcessing) return;
                             
@@ -668,6 +868,7 @@ class TabManager {
                                 e.stopPropagation();
                                 e.stopImmediatePropagation();
                                 
+                                hideDropdown();
                                 window.__promptProcessing = true;
                                 
                                 // Save command for replacement
@@ -698,6 +899,14 @@ class TabManager {
                             }
                         }
                     }, true);
+                    
+                    // Hide dropdown on click outside
+                    document.addEventListener('click', function(e) {
+                        if (!dropdown.contains(e.target)) {
+                            hideDropdown();
+                        }
+                    }, true);
+                    
                 } else {
                     window.__prompts = ${promptsData};
                 }
