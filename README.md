@@ -1,9 +1,9 @@
 # Gemini Tabs
 
-Google Gemini를 멀티탭으로 사용할 수 있는 macOS 데스크탑 앱입니다.
+Google Gemini를 멀티탭으로 사용할 수 있는 macOS 데스크톱 앱입니다.
 
 ![Platform](https://img.shields.io/badge/platform-macOS-blue)
-![Version](https://img.shields.io/badge/version-1.0.0-green)
+![Version](https://img.shields.io/badge/version-1.1.0-green)
 
 ---
 
@@ -22,11 +22,18 @@ Google Gemini를 멀티탭으로 사용할 수 있는 macOS 데스크탑 앱입�
 - `/요약` → "다음 내용을 요약해주세요:"
 - `/번역` → "다음을 한국어로 번역해주세요:"
 
+### 📁 PARA 폴더 연동 (신규!)
+로컬 PARA 폴더와 연동하여 Gemini 대화를 프로젝트별로 저장합니다.
+
+- 설정에서 PARA 폴더 경로 지정
+- 프로젝트 선택 후 탭의 💾 버튼으로 대화 저장
+- 마크다운 형식으로 `Projects/[프로젝트]/outputs/`에 저장
+
 ---
 
 ## 📥 설치 방법
 
-1. [Releases](https://github.com/tobeythebully/gemini_tabs/releases)에서 `Gemini Tabs-1.0.0-arm64.dmg` 다운로드
+1. [Releases](https://github.com/tobeythebully/gemini_tabs/releases)에서 `Gemini Tabs-1.1.0-arm64.dmg` 다운로드
 2. DMG 파일 열기
 3. `Gemini Tabs.app`을 **Applications** 폴더로 드래그
 4. 앱 실행!

@@ -1,5 +1,6 @@
-const { app, BrowserWindow, globalShortcut } = require('electron');
+const { app, BrowserWindow, globalShortcut, ipcMain, dialog } = require('electron');
 const path = require('path');
+const fs = require('fs');
 
 let mainWindow;
 
@@ -64,5 +65,48 @@ app.on('window-all-closed', () => {
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
+  }
+});
+
+// ============================================
+// PARA IPC Handlers
+// ============================================
+
+// 폴더 선택 다이얼로그
+ipcMain.handle('dialog:selectFolder', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openDirectory'],
+    title: 'PARA 폴더 선택'
+  });
+  return result.canceled ? null : result.filePaths[0];
+});
+
+// Projects 폴더 스캔
+ipcMain.handle('fs:readProjects', async (event, paraRoot) => {
+  try {
+    const projectsPath = path.join(paraRoot, 'Projects');
+    if (!fs.existsSync(projectsPath)) {
+      return { error: 'Projects 폴더가 없습니다.' };
+    }
+    const projects = fs.readdirSync(projectsPath, { withFileTypes: true })
+      .filter(d => d.isDirectory())
+      .map(d => d.name);
+    return { projects };
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
+// 마크다운 파일 저장
+ipcMain.handle('fs:saveMarkdown', async (event, { filePath, content }) => {
+  try {
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(filePath, content, 'utf-8');
+    return { success: true };
+  } catch (err) {
+    return { error: err.message };
   }
 });

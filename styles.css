@@ -329,6 +329,32 @@ body.platform-win .bookmark-bar {
   opacity: 1;
 }
 
+/* Tab Save Button */
+.tab-save {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition);
+  opacity: 0;
+  font-size: 12px;
+}
+
+.tab:hover .tab-save {
+  opacity: 1;
+}
+
+.tab-save:hover {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.2);
+}
+
 /* Modal */
 .modal-overlay {
   position: fixed;
@@ -539,4 +565,103 @@ body.platform-win .bookmark-bar {
   color: #555;
   padding: 24px;
   font-size: 14px;
+}
+
+/* PARA Tab Styles */
+.para-config,
+.para-projects,
+.para-current {
+  margin-bottom: 20px;
+}
+
+.para-label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.para-folder-row {
+  display: flex;
+  gap: 8px;
+}
+
+.para-folder-row input {
+  flex: 1;
+  padding: 10px 12px;
+  background: #222;
+  border: 1px solid #333;
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.para-select-btn {
+  padding: 10px 16px;
+  background: var(--accent);
+  color: var(--text-active);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: var(--transition);
+  white-space: nowrap;
+}
+
+.para-select-btn:hover {
+  background: var(--accent-hover);
+}
+
+.para-project-list {
+  background: #222;
+  border-radius: 8px;
+  padding: 12px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.para-project-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.para-project-item:hover {
+  background: #333;
+}
+
+.para-project-item.selected {
+  background: #444;
+}
+
+.para-empty {
+  color: #555;
+  font-size: 13px;
+  text-align: center;
+}
+
+#currentProjectSelect {
+  width: 100%;
+  padding: 10px 12px;
+  background: #222;
+  border: 1px solid #333;
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+#currentProjectSelect:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+#currentProjectSelect:not(:disabled):hover {
+  border-color: #555;
 }

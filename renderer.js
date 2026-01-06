@@ -324,6 +324,9 @@ class SettingsModal {
         this.modal.classList.add('active');
         window.bookmarkManager.render();
         window.promptManager.render();
+        if (window.paraManager) {
+            window.paraManager.render();
+        }
     }
 
     close() {
@@ -333,6 +336,131 @@ class SettingsModal {
     switchTab(tabName) {
         this.tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
         this.contents.forEach(c => c.classList.toggle('active', c.id === `${tabName}Tab`));
+    }
+}
+
+// ============================================
+// PARA MANAGER
+// ============================================
+class ParaManager {
+    constructor() {
+        this.paraRoot = StorageManager.get('paraRoot', null);
+        this.currentProject = StorageManager.get('currentProject', null);
+        this.projects = [];
+
+        this.pathInput = document.getElementById('paraRootPath');
+        this.selectBtn = document.getElementById('selectParaFolder');
+        this.projectList = document.getElementById('paraProjectList');
+        this.projectSelect = document.getElementById('currentProjectSelect');
+
+        this.initListeners();
+        this.render();
+    }
+
+    initListeners() {
+        if (this.selectBtn) {
+            this.selectBtn.addEventListener('click', () => this.selectFolder());
+        }
+
+        if (this.projectSelect) {
+            this.projectSelect.addEventListener('change', (e) => {
+                this.currentProject = e.target.value || null;
+                StorageManager.set('currentProject', this.currentProject);
+                this.render();
+            });
+        }
+    }
+
+    async selectFolder() {
+        if (!window.electronAPI || !window.electronAPI.selectFolder) {
+            alert('파일 시스템 API를 사용할 수 없습니다.');
+            return;
+        }
+
+        const folderPath = await window.electronAPI.selectFolder();
+        if (folderPath) {
+            this.paraRoot = folderPath;
+            StorageManager.set('paraRoot', folderPath);
+            await this.loadProjects();
+            this.render();
+        }
+    }
+
+    async loadProjects() {
+        if (!this.paraRoot || !window.electronAPI) {
+            this.projects = [];
+            return;
+        }
+
+        const result = await window.electronAPI.readProjects(this.paraRoot);
+        if (result.error) {
+            console.error('Failed to load projects:', result.error);
+            this.projects = [];
+        } else {
+            this.projects = result.projects || [];
+        }
+    }
+
+    async saveConversation(content, filename) {
+        if (!this.paraRoot || !this.currentProject) {
+            alert('PARA 폴더와 프로젝트를 먼저 선택해주세요.');
+            return false;
+        }
+
+        const filePath = `${this.paraRoot}/Projects/${this.currentProject}/outputs/${filename}.md`;
+
+        const result = await window.electronAPI.saveMarkdown(filePath, content);
+        if (result.error) {
+            alert('저장 실패: ' + result.error);
+            return false;
+        }
+
+        return true;
+    }
+
+    render() {
+        // Update path input
+        if (this.pathInput) {
+            this.pathInput.value = this.paraRoot || '';
+        }
+
+        // Update project list
+        if (this.projectList) {
+            if (this.projects.length === 0) {
+                this.projectList.innerHTML = '<p class="para-empty">PARA 폴더를 먼저 선택하세요.</p>';
+            } else {
+                this.projectList.innerHTML = this.projects.map(p => `
+                    <div class="para-project-item ${p === this.currentProject ? 'selected' : ''}" data-project="${p}">
+                        📁 ${p}
+                    </div>
+                `).join('');
+
+                // Add click handlers
+                this.projectList.querySelectorAll('.para-project-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        this.currentProject = item.dataset.project;
+                        StorageManager.set('currentProject', this.currentProject);
+                        this.render();
+                    });
+                });
+            }
+        }
+
+        // Update project select dropdown
+        if (this.projectSelect) {
+            if (this.projects.length === 0) {
+                this.projectSelect.disabled = true;
+                this.projectSelect.innerHTML = '<option value="">프로젝트 선택...</option>';
+            } else {
+                this.projectSelect.disabled = false;
+                this.projectSelect.innerHTML = `
+                    <option value="">프로젝트 선택...</option>
+                    ${this.projects.map(p => `
+                        <option value="${p}" ${p === this.currentProject ? 'selected' : ''}>${p}</option>
+                    `).join('')}
+                `;
+            }
+        }
     }
 }
 
@@ -366,13 +494,14 @@ class TabManager {
         tabEl.innerHTML = `
             <div class="tab-icon"></div>
             <span class="tab-title">새 탭</span>
+            <button class="tab-save" title="대화 저장">💾</button>
             <button class="tab-bookmark" title="북마크">☆</button>
             <button class="tab-close" title="탭 닫기 (⌘W)">✕</button>
         `;
 
         // Tab click handler
         tabEl.addEventListener('click', (e) => {
-            if (!e.target.classList.contains('tab-close') && !e.target.classList.contains('tab-bookmark')) {
+            if (!e.target.classList.contains('tab-close') && !e.target.classList.contains('tab-bookmark') && !e.target.classList.contains('tab-save')) {
                 this.switchToTabById(tabId);
             }
         });
@@ -388,6 +517,13 @@ class TabManager {
         bookmarkBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.toggleBookmark(tabId);
+        });
+
+        // Save button
+        const saveBtn = tabEl.querySelector('.tab-save');
+        saveBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.saveConversation(tabId);
         });
 
         this.tabList.insertBefore(tabEl, this.newTabBtn);
@@ -638,6 +774,156 @@ class TabManager {
         bookmarkBtn.classList.toggle('bookmarked', isBookmarked);
     }
 
+    async saveConversation(tabId) {
+        const tab = this.tabs.find(t => t.id === tabId);
+        if (!tab) return;
+
+        // Check if PARA is configured
+        if (!window.paraManager || !window.paraManager.paraRoot) {
+            alert('PARA 폴더를 먼저 설정해주세요.\n설정 → 📁 PARA 탭에서 폴더를 선택하세요.');
+            return;
+        }
+
+        if (!window.paraManager.currentProject) {
+            alert('프로젝트를 먼저 선택해주세요.\n설정 → 📁 PARA 탭에서 프로젝트를 선택하세요.');
+            return;
+        }
+
+        // Extract conversation from Gemini
+        try {
+            const conversationData = await tab.webview.executeJavaScript(`
+                (() => {
+                    const messages = [];
+                    const turns = document.querySelectorAll('.conversation-turn');
+                    
+                    turns.forEach(turn => {
+                        const isUser = turn.querySelector('[data-user-message]') !== null || 
+                                        turn.classList.contains('user-turn') ||
+                                        turn.querySelector('.user-query');
+                        const isModel = turn.querySelector('[data-model-response]') !== null ||
+                                         turn.classList.contains('model-turn') ||
+                                         turn.querySelector('.model-response');
+                        
+                        // Try multiple selectors for content
+                        let content = '';
+                        const contentEl = turn.querySelector('.message-content, .query-content, .response-content, [data-message-content]');
+                        if (contentEl) {
+                            content = contentEl.innerText.trim();
+                        } else {
+                            // Fallback: get text from the turn itself, excluding metadata
+                            const clone = turn.cloneNode(true);
+                            const metadata = clone.querySelectorAll('.timestamp, .actions, button');
+                            metadata.forEach(el => el.remove());
+                            content = clone.innerText.trim();
+                        }
+                        
+                        if (content) {
+                            messages.push({
+                                role: isUser ? 'user' : 'assistant',
+                                content: content
+                            });
+                        }
+                    });
+                    
+                    // If no turns found, try alternative structure
+                    if (messages.length === 0) {
+                        const allText = document.body.innerText;
+                        return { raw: allText.substring(0, 5000) };
+                    }
+                    
+                    return { messages };
+                })()
+            `);
+
+            // Format as markdown
+            let markdown = '';
+            const title = tab.tabEl.querySelector('.tab-title').textContent || '대화';
+            const now = new Date();
+            const dateStr = now.toISOString().slice(0, 10);
+            const timeStr = now.toTimeString().slice(0, 5);
+
+            markdown += `# ${title}\n\n`;
+            markdown += `> 저장 일시: ${dateStr} ${timeStr}\n`;
+            markdown += `> 프로젝트: ${window.paraManager.currentProject}\n\n`;
+            markdown += `---\n\n`;
+
+            if (conversationData.messages && conversationData.messages.length > 0) {
+                conversationData.messages.forEach(msg => {
+                    if (msg.role === 'user') {
+                        markdown += `## 👤 사용자\n\n${msg.content}\n\n`;
+                    } else {
+                        markdown += `## 🤖 Gemini\n\n${msg.content}\n\n`;
+                    }
+                });
+            } else if (conversationData.raw) {
+                markdown += `## 대화 내용\n\n${conversationData.raw}\n`;
+            } else {
+                alert('대화 내용을 추출할 수 없습니다.');
+                return;
+            }
+
+            // Ask for filename using custom modal
+            const defaultFilename = `${title.replace(/[^가-힣a-zA-Z0-9]/g, '_')}_${dateStr}`;
+            const filename = await this.showSaveModal(defaultFilename);
+
+            if (!filename) return; // User cancelled
+
+            // Save using ParaManager
+            const success = await window.paraManager.saveConversation(markdown, filename);
+
+            if (success) {
+                alert(`✅ 저장 완료!\n\n${window.paraManager.currentProject}/outputs/${filename}.md`);
+            }
+        } catch (err) {
+            console.error('Failed to save conversation:', err);
+            alert('대화 저장 중 오류가 발생했습니다: ' + err.message);
+        }
+    }
+
+    showSaveModal(defaultFilename) {
+        return new Promise((resolve) => {
+            const modal = document.getElementById('saveModal');
+            const input = document.getElementById('saveFilenameInput');
+            const confirmBtn = document.getElementById('confirmSaveBtn');
+            const cancelBtn = document.getElementById('cancelSaveBtn');
+            const closeBtn = document.getElementById('closeSaveModal');
+
+            input.value = defaultFilename;
+            modal.classList.add('active');
+            input.focus();
+            input.select();
+
+            const cleanup = () => {
+                modal.classList.remove('active');
+                confirmBtn.removeEventListener('click', onConfirm);
+                cancelBtn.removeEventListener('click', onCancel);
+                closeBtn.removeEventListener('click', onCancel);
+                input.removeEventListener('keydown', onKeydown);
+            };
+
+            const onConfirm = () => {
+                const value = input.value.trim();
+                cleanup();
+                resolve(value || null);
+            };
+
+            const onCancel = () => {
+                cleanup();
+                resolve(null);
+            };
+
+            const onKeydown = (e) => {
+                if (e.key === 'Enter') onConfirm();
+                if (e.key === 'Escape') onCancel();
+            };
+
+            confirmBtn.addEventListener('click', onConfirm);
+            cancelBtn.addEventListener('click', onCancel);
+            closeBtn.addEventListener('click', onCancel);
+            input.addEventListener('keydown', onKeydown);
+        });
+    }
+
     navigateToUrl(url) {
         const activeTab = this.getActiveTab();
         if (activeTab) {
@@ -702,5 +988,6 @@ if (window.electronAPI && window.electronAPI.platform) {
 
 window.bookmarkManager = new BookmarkManager();
 window.promptManager = new PromptManager();
+window.paraManager = new ParaManager();
 window.settingsModal = new SettingsModal();
 window.tabManager = new TabManager();
