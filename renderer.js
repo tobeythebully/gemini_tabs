@@ -615,6 +615,24 @@ class TabManager {
                         
                         window.__selectedIndex = 0;
                         renderDropdown();
+                        
+                        // Viewport boundary check
+                        var dropdownWidth = 250; // min-width + padding
+                        var dropdownHeight = Math.min(window.__filteredPrompts.length * 50, 200); // max-height
+                        var viewportWidth = window.innerWidth;
+                        var viewportHeight = window.innerHeight;
+                        
+                        // Adjust X if dropdown would overflow right edge
+                        if (x + dropdownWidth > viewportWidth - 10) {
+                            x = Math.max(10, viewportWidth - dropdownWidth - 10);
+                        }
+                        
+                        // Adjust Y if dropdown would overflow bottom edge
+                        if (y + dropdownHeight > viewportHeight - 10) {
+                            // Show above the cursor instead
+                            y = Math.max(10, y - dropdownHeight - 30);
+                        }
+                        
                         dropdown.style.left = x + 'px';
                         dropdown.style.top = y + 'px';
                         dropdown.style.display = 'block';
@@ -815,9 +833,12 @@ class TabManager {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 window.__selectedIndex = Math.min(window.__selectedIndex + 1, window.__filteredPrompts.length - 1);
-                                // Update visual only
+                                // Update visual and scroll into view
                                 dropdown.querySelectorAll('[data-index]').forEach(function(el, idx) {
                                     el.style.background = idx === window.__selectedIndex ? '#333' : 'transparent';
+                                    if (idx === window.__selectedIndex) {
+                                        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                                    }
                                 });
                                 return;
                             }
@@ -825,13 +846,16 @@ class TabManager {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 window.__selectedIndex = Math.max(window.__selectedIndex - 1, 0);
-                                // Update visual only
+                                // Update visual and scroll into view
                                 dropdown.querySelectorAll('[data-index]').forEach(function(el, idx) {
                                     el.style.background = idx === window.__selectedIndex ? '#333' : 'transparent';
+                                    if (idx === window.__selectedIndex) {
+                                        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                                    }
                                 });
                                 return;
                             }
-                            if (e.key === 'Tab') {
+                            if (e.key === 'Tab' || e.key === 'Enter') {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 e.stopImmediatePropagation();
