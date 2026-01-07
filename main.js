@@ -2,7 +2,8 @@ const { app, BrowserWindow, globalShortcut, ipcMain, dialog } = require('electro
 const path = require('path');
 const fs = require('fs');
 
-let mainWindow;
+let windows = [];
+let focusedWindow = null;
 
 function createWindow() {
   const isMac = process.platform === 'darwin';
@@ -29,29 +30,68 @@ function createWindow() {
     windowOptions.autoHideMenuBar = true;
   }
 
-  mainWindow = new BrowserWindow(windowOptions);
+  const win = new BrowserWindow(windowOptions);
+  windows.push(win);
 
-  mainWindow.loadFile('index.html');
+  win.loadFile('index.html');
 
-  // Register keyboard shortcuts
-  mainWindow.webContents.on('did-finish-load', () => {
-    mainWindow.webContents.executeJavaScript(`
-      document.addEventListener('keydown', (e) => {
-        if (e.metaKey || e.ctrlKey) {
-          if (e.key === 't') {
-            e.preventDefault();
-            window.tabManager.createTab();
-          } else if (e.key === 'w') {
-            e.preventDefault();
-            window.tabManager.closeCurrentTab();
-          } else if (e.key >= '1' && e.key <= '9') {
-            e.preventDefault();
-            window.tabManager.switchToTab(parseInt(e.key) - 1);
-          }
+  // Register global keyboard shortcuts when this window gains focus
+  win.on('focus', () => {
+    focusedWindow = win;
+
+    // Unregister all first to avoid duplicates
+    globalShortcut.unregisterAll();
+
+    // Cmd+T: New tab in current window
+    globalShortcut.register('CommandOrControl+T', () => {
+      if (focusedWindow) {
+        focusedWindow.webContents.send('shortcut', 'new-tab');
+      }
+    });
+
+    // Cmd+N: New tab in current window (same as Cmd+T)
+    globalShortcut.register('CommandOrControl+N', () => {
+      if (focusedWindow) {
+        focusedWindow.webContents.send('shortcut', 'new-tab');
+      }
+    });
+
+    // Cmd+Shift+N: New window
+    globalShortcut.register('CommandOrControl+Shift+N', () => {
+      createWindow();
+    });
+
+    // Cmd+W: Close tab
+    globalShortcut.register('CommandOrControl+W', () => {
+      if (focusedWindow) {
+        focusedWindow.webContents.send('shortcut', 'close-tab');
+      }
+    });
+
+    // Cmd+1~9: Switch tabs
+    for (let i = 1; i <= 9; i++) {
+      globalShortcut.register(`CommandOrControl+${i}`, () => {
+        if (focusedWindow) {
+          focusedWindow.webContents.send('shortcut', 'switch-tab', i - 1);
         }
       });
-    `);
+    }
   });
+
+  // Unregister shortcuts when window loses focus
+  win.on('blur', () => {
+    globalShortcut.unregisterAll();
+  });
+
+  // Remove from array when closed
+  win.on('closed', () => {
+    windows = windows.filter(w => w !== win);
+    if (focusedWindow === win) {
+      focusedWindow = null;
+    }
+  });
+
+  return win;
 }
 
 app.whenReady().then(createWindow);
@@ -74,7 +114,8 @@ app.on('activate', () => {
 
 // 폴더 선택 다이얼로그
 ipcMain.handle('dialog:selectFolder', async () => {
-  const result = await dialog.showOpenDialog(mainWindow, {
+  const win = focusedWindow || windows[0] || null;
+  const result = await dialog.showOpenDialog(win, {
     properties: ['openDirectory'],
     title: 'PARA 폴더 선택'
   });

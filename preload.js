@@ -6,5 +6,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // PARA Integration APIs
     selectFolder: () => ipcRenderer.invoke('dialog:selectFolder'),
     readProjects: (paraRoot) => ipcRenderer.invoke('fs:readProjects', paraRoot),
-    saveMarkdown: (filePath, content) => ipcRenderer.invoke('fs:saveMarkdown', { filePath, content })
+    saveMarkdown: (filePath, content) => ipcRenderer.invoke('fs:saveMarkdown', { filePath, content }),
+    // Shortcut listener
+    onShortcut: (callback) => ipcRenderer.on('shortcut', (event, action, data) => callback(action, data))
 });

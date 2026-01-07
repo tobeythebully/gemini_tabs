@@ -1224,3 +1224,20 @@ window.promptManager = new PromptManager();
 window.paraManager = new ParaManager();
 window.settingsModal = new SettingsModal();
 window.tabManager = new TabManager();
+
+// Listen for global shortcuts from main process
+if (window.electronAPI && window.electronAPI.onShortcut) {
+    window.electronAPI.onShortcut((action, data) => {
+        switch (action) {
+            case 'new-tab':
+                window.tabManager.createTab();
+                break;
+            case 'close-tab':
+                window.tabManager.closeCurrentTab();
+                break;
+            case 'switch-tab':
+                window.tabManager.switchToTab(data);
+                break;
+        }
+    });
+}
