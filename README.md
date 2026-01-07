@@ -47,8 +47,9 @@ Google Gemini를 멀티탭으로 사용할 수 있는 macOS 데스크톱 앱입�
 > 
 > **터미널에서 아래 명령어를 실행하세요:**
 > ```bash
-> xattr -cr /Applications/Gemini\ Tabs.app
+> sudo xattr -cr /Applications/Gemini\ Tabs.app
 > ```
+> (비밀번호 입력 시 화면에 아무것도 안 보이는 게 정상입니다)
 > 
 > 이후 앱을 다시 실행하면 정상적으로 열립니다.
 
