@@ -48,7 +48,7 @@
       <div class="modal-tabs">
         <button class="modal-tab active" data-tab="bookmarks">북마크</button>
         <button class="modal-tab" data-tab="prompts">프롬프트</button>
-        <button class="modal-tab" data-tab="para">📁 PARA</button>
+        <button class="modal-tab" data-tab="download">📁 다운로드</button>
       </div>
       <div class="modal-content">
         <!-- Bookmarks Tab -->
@@ -65,26 +65,15 @@
           <p class="prompt-hint">💡 Gemini에서 /커맨드 입력 후 Tab 키를 누르면 프롬프트가 삽입됩니다.</p>
           <div class="list-container" id="promptsList"></div>
         </div>
-        <!-- PARA Tab -->
-        <div class="tab-content" id="paraTab">
+        <!-- Download Tab -->
+        <div class="tab-content" id="downloadTab">
           <div class="para-config">
-            <label class="para-label">PARA 폴더 경로</label>
+            <label class="para-label">다운로드 폴더</label>
             <div class="para-folder-row">
-              <input type="text" id="paraRootPath" readonly placeholder="폴더를 선택하세요">
-              <button id="selectParaFolder" class="para-select-btn">📂 선택</button>
+              <input type="text" id="downloadFolderPath" readonly placeholder="폴더를 선택하세요">
+              <button id="selectDownloadFolder" class="para-select-btn">📂 선택</button>
             </div>
-          </div>
-          <div class="para-projects">
-            <label class="para-label">프로젝트 목록</label>
-            <div class="para-project-list" id="paraProjectList">
-              <p class="para-empty">PARA 폴더를 먼저 선택하세요.</p>
-            </div>
-          </div>
-          <div class="para-current">
-            <label class="para-label">현재 프로젝트</label>
-            <select id="currentProjectSelect" disabled>
-              <option value="">프로젝트 선택...</option>
-            </select>
+            <p class="prompt-hint" style="margin-top: 12px;">💡 대화 저장(💾) 시 이 폴더에 마크다운 파일이 저장됩니다.</p>
           </div>
         </div>
       </div>
@@ -107,6 +96,31 @@
             style="padding: 10px 20px; background: #333; color: white; border: none; border-radius: 6px; cursor: pointer;">취소</button>
           <button id="confirmSaveBtn"
             style="padding: 10px 20px; background: white; color: black; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">저장</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Toast Notification -->
+  <div id="customToast" class="custom-toast">
+    <span id="toastIcon" class="toast-icon">✅</span>
+    <span id="toastMessage" class="toast-message"></span>
+  </div>
+
+  <!-- Custom Confirm Modal -->
+  <div class="modal-overlay" id="customConfirmModal">
+    <div class="modal" style="width: 400px;">
+      <div class="modal-header">
+        <h2 id="confirmTitle">확인</h2>
+        <button class="modal-close" id="closeConfirmModal">✕</button>
+      </div>
+      <div class="modal-content">
+        <p id="confirmMessage" style="font-size: 14px; line-height: 1.6; color: #ccc; white-space: pre-wrap;"></p>
+        <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px;">
+          <button id="confirmCancelBtn"
+            style="padding: 10px 20px; background: #333; color: white; border: none; border-radius: 6px; cursor: pointer;">취소</button>
+          <button id="confirmOkBtn"
+            style="padding: 10px 20px; background: white; color: black; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">확인</button>
         </div>
       </div>
     </div>

@@ -17,6 +17,61 @@ class StorageManager {
 }
 
 // ============================================
+// UI HELPER (Custom Toast & Confirm)
+// ============================================
+class UIHelper {
+    static showToast(message, icon = '✅', duration = 3000) {
+        const toast = document.getElementById('customToast');
+        const toastIcon = document.getElementById('toastIcon');
+        const toastMessage = document.getElementById('toastMessage');
+
+        if (!toast) return;
+
+        toastIcon.textContent = icon;
+        toastMessage.textContent = message;
+        toast.classList.add('show');
+
+        setTimeout(() => {
+            toast.classList.remove('show');
+        }, duration);
+    }
+
+    static showConfirm(title, message) {
+        return new Promise((resolve) => {
+            const modal = document.getElementById('customConfirmModal');
+            const titleEl = document.getElementById('confirmTitle');
+            const messageEl = document.getElementById('confirmMessage');
+            const okBtn = document.getElementById('confirmOkBtn');
+            const cancelBtn = document.getElementById('confirmCancelBtn');
+            const closeBtn = document.getElementById('closeConfirmModal');
+
+            if (!modal) {
+                resolve(confirm(message)); // Fallback to native
+                return;
+            }
+
+            titleEl.textContent = title;
+            messageEl.textContent = message;
+            modal.classList.add('active');
+
+            const cleanup = () => {
+                modal.classList.remove('active');
+                okBtn.removeEventListener('click', onOk);
+                cancelBtn.removeEventListener('click', onCancel);
+                closeBtn.removeEventListener('click', onCancel);
+            };
+
+            const onOk = () => { cleanup(); resolve(true); };
+            const onCancel = () => { cleanup(); resolve(false); };
+
+            okBtn.addEventListener('click', onOk);
+            cancelBtn.addEventListener('click', onCancel);
+            closeBtn.addEventListener('click', onCancel);
+        });
+    }
+}
+
+// ============================================
 // BOOKMARK MANAGER
 // ============================================
 class BookmarkManager {
@@ -61,6 +116,10 @@ class BookmarkManager {
 
     getByUrl(url) {
         return this.bookmarks.find(b => b.url === url);
+    }
+
+    getByIndex(index) {
+        return this.bookmarks[index] || null;
     }
 
     save() {
@@ -116,10 +175,47 @@ class BookmarkManager {
                     btn.addEventListener('click', () => {
                         const id = btn.dataset.id;
                         const bookmark = this.bookmarks.find(b => b.id === id);
-                        const newTitle = prompt('북마크 제목 수정:', bookmark.title);
-                        if (newTitle !== null && newTitle.trim()) {
-                            this.update(id, newTitle.trim());
-                        }
+                        const listItem = btn.closest('.list-item');
+
+                        // Replace with edit form
+                        listItem.innerHTML = `
+                            <div class="edit-form" style="display: flex; gap: 8px; flex: 1; align-items: center;">
+                                <input type="text" class="edit-title" value="${bookmark.title}" style="flex: 1; padding: 8px; background: #333; border: 1px solid #555; border-radius: 4px; color: white;" placeholder="북마크 제목">
+                                <button class="save-edit" style="padding: 8px 12px; background: #fff; color: #000; border: none; border-radius: 4px; cursor: pointer;">저장</button>
+                                <button class="cancel-edit" style="padding: 8px 12px; background: #444; color: #fff; border: none; border-radius: 4px; cursor: pointer;">취소</button>
+                            </div>
+                            <div style="font-size: 11px; color: #666; margin-top: 4px; padding-left: 4px;">${bookmark.url}</div>
+                        `;
+
+                        // Focus the input
+                        const input = listItem.querySelector('.edit-title');
+                        input.focus();
+                        input.select();
+
+                        // Save button handler
+                        listItem.querySelector('.save-edit').addEventListener('click', () => {
+                            const newTitle = input.value.trim();
+                            if (newTitle) {
+                                this.update(id, newTitle);
+                            }
+                        });
+
+                        // Cancel button handler
+                        listItem.querySelector('.cancel-edit').addEventListener('click', () => {
+                            this.render();
+                        });
+
+                        // Enter key to save, Escape to cancel
+                        input.addEventListener('keydown', (e) => {
+                            if (e.key === 'Enter') {
+                                const newTitle = input.value.trim();
+                                if (newTitle) {
+                                    this.update(id, newTitle);
+                                }
+                            } else if (e.key === 'Escape') {
+                                this.render();
+                            }
+                        });
                     });
                 });
 
@@ -324,8 +420,8 @@ class SettingsModal {
         this.modal.classList.add('active');
         window.bookmarkManager.render();
         window.promptManager.render();
-        if (window.paraManager) {
-            window.paraManager.render();
+        if (window.downloadManager) {
+            window.downloadManager.render();
         }
     }
 
@@ -340,18 +436,21 @@ class SettingsModal {
 }
 
 // ============================================
-// PARA MANAGER
+// DOWNLOAD MANAGER
 // ============================================
-class ParaManager {
+class DownloadManager {
     constructor() {
-        this.paraRoot = StorageManager.get('paraRoot', null);
-        this.currentProject = StorageManager.get('currentProject', null);
-        this.projects = [];
+        // Auto-migrate from old paraRoot setting if exists
+        const oldParaRoot = StorageManager.get('paraRoot', null);
+        this.downloadFolder = StorageManager.get('downloadFolder', null) || oldParaRoot;
 
-        this.pathInput = document.getElementById('paraRootPath');
-        this.selectBtn = document.getElementById('selectParaFolder');
-        this.projectList = document.getElementById('paraProjectList');
-        this.projectSelect = document.getElementById('currentProjectSelect');
+        // Save migrated value if applicable
+        if (this.downloadFolder && !StorageManager.get('downloadFolder', null)) {
+            StorageManager.set('downloadFolder', this.downloadFolder);
+        }
+
+        this.pathInput = document.getElementById('downloadFolderPath');
+        this.selectBtn = document.getElementById('selectDownloadFolder');
 
         this.initListeners();
         this.render();
@@ -360,14 +459,6 @@ class ParaManager {
     initListeners() {
         if (this.selectBtn) {
             this.selectBtn.addEventListener('click', () => this.selectFolder());
-        }
-
-        if (this.projectSelect) {
-            this.projectSelect.addEventListener('change', (e) => {
-                this.currentProject = e.target.value || null;
-                StorageManager.set('currentProject', this.currentProject);
-                this.render();
-            });
         }
     }
 
@@ -379,35 +470,19 @@ class ParaManager {
 
         const folderPath = await window.electronAPI.selectFolder();
         if (folderPath) {
-            this.paraRoot = folderPath;
-            StorageManager.set('paraRoot', folderPath);
-            await this.loadProjects();
+            this.downloadFolder = folderPath;
+            StorageManager.set('downloadFolder', folderPath);
             this.render();
         }
     }
 
-    async loadProjects() {
-        if (!this.paraRoot || !window.electronAPI) {
-            this.projects = [];
-            return;
-        }
-
-        const result = await window.electronAPI.readProjects(this.paraRoot);
-        if (result.error) {
-            console.error('Failed to load projects:', result.error);
-            this.projects = [];
-        } else {
-            this.projects = result.projects || [];
-        }
-    }
-
     async saveConversation(content, filename) {
-        if (!this.paraRoot || !this.currentProject) {
-            alert('PARA 폴더와 프로젝트를 먼저 선택해주세요.');
+        if (!this.downloadFolder) {
+            alert('다운로드 폴더를 먼저 설정해주세요.\n설정 → 📁 다운로드 탭에서 폴더를 선택하세요.');
             return false;
         }
 
-        const filePath = `${this.paraRoot}/Projects/${this.currentProject}/outputs/${filename}.md`;
+        const filePath = `${this.downloadFolder}/${filename}.md`;
 
         const result = await window.electronAPI.saveMarkdown(filePath, content);
         if (result.error) {
@@ -419,47 +494,8 @@ class ParaManager {
     }
 
     render() {
-        // Update path input
         if (this.pathInput) {
-            this.pathInput.value = this.paraRoot || '';
-        }
-
-        // Update project list
-        if (this.projectList) {
-            if (this.projects.length === 0) {
-                this.projectList.innerHTML = '<p class="para-empty">PARA 폴더를 먼저 선택하세요.</p>';
-            } else {
-                this.projectList.innerHTML = this.projects.map(p => `
-                    <div class="para-project-item ${p === this.currentProject ? 'selected' : ''}" data-project="${p}">
-                        📁 ${p}
-                    </div>
-                `).join('');
-
-                // Add click handlers
-                this.projectList.querySelectorAll('.para-project-item').forEach(item => {
-                    item.addEventListener('click', () => {
-                        this.currentProject = item.dataset.project;
-                        StorageManager.set('currentProject', this.currentProject);
-                        this.render();
-                    });
-                });
-            }
-        }
-
-        // Update project select dropdown
-        if (this.projectSelect) {
-            if (this.projects.length === 0) {
-                this.projectSelect.disabled = true;
-                this.projectSelect.innerHTML = '<option value="">프로젝트 선택...</option>';
-            } else {
-                this.projectSelect.disabled = false;
-                this.projectSelect.innerHTML = `
-                    <option value="">프로젝트 선택...</option>
-                    ${this.projects.map(p => `
-                        <option value="${p}" ${p === this.currentProject ? 'selected' : ''}>${p}</option>
-                    `).join('')}
-                `;
-            }
+            this.pathInput.value = this.downloadFolder || '';
         }
     }
 }
@@ -1011,14 +1047,9 @@ class TabManager {
         const tab = this.tabs.find(t => t.id === tabId);
         if (!tab) return;
 
-        // Check if PARA is configured
-        if (!window.paraManager || !window.paraManager.paraRoot) {
-            alert('PARA 폴더를 먼저 설정해주세요.\n설정 → 📁 PARA 탭에서 폴더를 선택하세요.');
-            return;
-        }
-
-        if (!window.paraManager.currentProject) {
-            alert('프로젝트를 먼저 선택해주세요.\n설정 → 📁 PARA 탭에서 프로젝트를 선택하세요.');
+        // Check if download folder is configured
+        if (!window.downloadManager || !window.downloadManager.downloadFolder) {
+            UIHelper.showToast('다운로드 폴더를 먼저 설정해주세요. 설정 → 📁 다운로드 탭에서 폴더를 선택하세요.', '⚠️', 4000);
             return;
         }
 
@@ -1027,30 +1058,32 @@ class TabManager {
             const conversationData = await tab.webview.executeJavaScript(`
                 (() => {
                     const messages = [];
-                    const turns = document.querySelectorAll('.conversation-turn');
+                    
+                    // 2024/2025 Gemini DOM structure uses custom HTML elements
+                    // <user-query> for user messages, <model-response> for AI responses
+                    const turns = document.querySelectorAll('user-query, model-response');
+                    
+                    console.log('[Extract] Found', turns.length, 'turns with user-query/model-response');
                     
                     turns.forEach(turn => {
-                        const isUser = turn.querySelector('[data-user-message]') !== null || 
-                                        turn.classList.contains('user-turn') ||
-                                        turn.querySelector('.user-query');
-                        const isModel = turn.querySelector('[data-model-response]') !== null ||
-                                         turn.classList.contains('model-turn') ||
-                                         turn.querySelector('.model-response');
+                        const isUser = turn.tagName === 'USER-QUERY';
                         
-                        // Try multiple selectors for content
                         let content = '';
-                        const contentEl = turn.querySelector('.message-content, .query-content, .response-content, [data-message-content]');
-                        if (contentEl) {
-                            content = contentEl.innerText.trim();
+                        if (isUser) {
+                            // User message: text in .query-content
+                            const contentEl = turn.querySelector('.query-content');
+                            if (contentEl) {
+                                content = contentEl.innerText.trim();
+                            }
                         } else {
-                            // Fallback: get text from the turn itself, excluding metadata
-                            const clone = turn.cloneNode(true);
-                            const metadata = clone.querySelectorAll('.timestamp, .actions, button');
-                            metadata.forEach(el => el.remove());
-                            content = clone.innerText.trim();
+                            // Model response: text in .response-container-content
+                            const contentEl = turn.querySelector('.response-container-content');
+                            if (contentEl) {
+                                content = contentEl.innerText.trim();
+                            }
                         }
                         
-                        if (content) {
+                        if (content && content.length > 0) {
                             messages.push({
                                 role: isUser ? 'user' : 'assistant',
                                 content: content
@@ -1058,10 +1091,33 @@ class TabManager {
                         }
                     });
                     
-                    // If no turns found, try alternative structure
+                    console.log('[Extract] Extracted', messages.length, 'messages');
+                    
+                    // Fallback if new selectors don't work
                     if (messages.length === 0) {
-                        const allText = document.body.innerText;
-                        return { raw: allText.substring(0, 5000) };
+                        // Try older conversation-turn selector
+                        const oldTurns = document.querySelectorAll('.conversation-turn');
+                        console.log('[Extract] Fallback: found', oldTurns.length, 'conversation-turn elements');
+                        
+                        oldTurns.forEach(turn => {
+                            const content = turn.innerText.trim();
+                            if (content) {
+                                messages.push({
+                                    role: 'assistant',
+                                    content: content
+                                });
+                            }
+                        });
+                    }
+                    
+                    // Last resort: raw text from main area
+                    if (messages.length === 0) {
+                        const mainContent = document.querySelector('.conversation-container') || 
+                                            document.querySelector('[role="main"]') ||
+                                            document.body;
+                        const rawText = mainContent.innerText || '';
+                        console.log('[Extract] Using raw fallback, length:', rawText.length);
+                        return { raw: rawText.substring(0, 50000) };
                     }
                     
                     return { messages };
@@ -1076,24 +1132,30 @@ class TabManager {
             const timeStr = now.toTimeString().slice(0, 5);
 
             markdown += `# ${title}\n\n`;
-            markdown += `> 저장 일시: ${dateStr} ${timeStr}\n`;
-            markdown += `> 프로젝트: ${window.paraManager.currentProject}\n\n`;
+            markdown += `> 저장 일시: ${dateStr} ${timeStr}\n\n`;
             markdown += `---\n\n`;
 
             if (conversationData.messages && conversationData.messages.length > 0) {
+                console.log('[Save] Found', conversationData.messages.length, 'messages');
                 conversationData.messages.forEach(msg => {
                     if (msg.role === 'user') {
-                        markdown += `## 👤 사용자\n\n${msg.content}\n\n`;
+                        markdown += `### 사용자\n\n${msg.content}\n\n`;
                     } else {
-                        markdown += `## 🤖 Gemini\n\n${msg.content}\n\n`;
+                        markdown += `### Gemini\n\n${msg.content}\n\n`;
                     }
                 });
             } else if (conversationData.raw) {
-                markdown += `## 대화 내용\n\n${conversationData.raw}\n`;
+                console.log('[Save] Using raw fallback, length:', conversationData.raw.length);
+                // raw fallback일 경우에도 헤더 추가
+                markdown += `### 대화 내용\n\n${conversationData.raw}\n`;
             } else {
-                alert('대화 내용을 추출할 수 없습니다.');
+                UIHelper.showToast('대화 내용을 추출할 수 없습니다.', '❌', 3000);
                 return;
             }
+
+            // Show scroll warning before asking for filename
+            const proceedWithSave = await this.showScrollWarning();
+            if (!proceedWithSave) return; // User cancelled
 
             // Ask for filename using custom modal
             const defaultFilename = `${title.replace(/[^가-힣a-zA-Z0-9]/g, '_')}_${dateStr}`;
@@ -1101,15 +1163,13 @@ class TabManager {
 
             if (!filename) return; // User cancelled
 
-            // Save using ParaManager
-            const success = await window.paraManager.saveConversation(markdown, filename);
+            // Save using DownloadManager
+            const success = await window.downloadManager.saveConversation(markdown, filename);
 
-            if (success) {
-                alert(`✅ 저장 완료!\n\n${window.paraManager.currentProject}/outputs/${filename}.md`);
-            }
+            UIHelper.showToast(`저장 완료! ${filename}.md`, '✅', 3000);
         } catch (err) {
             console.error('Failed to save conversation:', err);
-            alert('대화 저장 중 오류가 발생했습니다: ' + err.message);
+            UIHelper.showToast('대화 저장 중 오류가 발생했습니다: ' + err.message, '❌', 4000);
         }
     }
 
@@ -1155,6 +1215,13 @@ class TabManager {
             closeBtn.addEventListener('click', onCancel);
             input.addEventListener('keydown', onKeydown);
         });
+    }
+
+    showScrollWarning() {
+        return UIHelper.showConfirm(
+            '📜 대화 저장 안내',
+            '대화 내용이 긴 경우, 전체 대화를 저장하려면\n대화 창을 맨 위까지 스크롤한 후 저장해주세요.\n\n스크롤하지 않으면 현재 화면에 보이는\n일부 대화만 저장될 수 있습니다.\n\n계속 저장하시겠습니까?'
+        );
     }
 
     navigateToUrl(url) {
@@ -1221,7 +1288,7 @@ if (window.electronAPI && window.electronAPI.platform) {
 
 window.bookmarkManager = new BookmarkManager();
 window.promptManager = new PromptManager();
-window.paraManager = new ParaManager();
+window.downloadManager = new DownloadManager();
 window.settingsModal = new SettingsModal();
 window.tabManager = new TabManager();
 
@@ -1237,6 +1304,12 @@ if (window.electronAPI && window.electronAPI.onShortcut) {
                 break;
             case 'switch-tab':
                 window.tabManager.switchToTab(data);
+                break;
+            case 'open-bookmark':
+                const bookmark = window.bookmarkManager.getByIndex(data);
+                if (bookmark) {
+                    window.tabManager.createTab(bookmark.url);
+                }
                 break;
         }
     });

@@ -61,6 +61,15 @@ function createWindow() {
       createWindow();
     });
 
+    // Cmd+Shift+1~9: Open bookmark by index
+    for (let i = 1; i <= 9; i++) {
+      globalShortcut.register(`CommandOrControl+Shift+${i}`, () => {
+        if (focusedWindow) {
+          focusedWindow.webContents.send('shortcut', 'open-bookmark', i - 1);
+        }
+      });
+    }
+
     // Cmd+W: Close tab
     globalShortcut.register('CommandOrControl+W', () => {
       if (focusedWindow) {
